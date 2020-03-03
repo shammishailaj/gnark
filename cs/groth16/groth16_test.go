@@ -601,7 +601,7 @@ func referenceCircuit(nbConstraints int) (cs.CS, cs.Assignments, cs.Assignments)
 	return circuit, good, bad
 }
 
-const nbBenchmarkedConstraints = 2000
+const nbBenchmarkedConstraints = 1000
 
 func TestBenchmarkCircuit(t *testing.T) {
 	assert := groth16.NewAssert(t)

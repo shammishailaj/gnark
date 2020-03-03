@@ -81,7 +81,18 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{ .Name}}Affine, scalars
 	}
 	
 	// result (1 per go routine)
-	tmpRes := make([]{{ .Name}}Jac, nbCalls)
+	tmpRes := make([]chan {{ .Name}}Jac, nbCalls)
+	chIndices := make([]chan struct{}, nbCalls)
+	indices := make([][][]int, nbCalls)
+	for i := 0; i < int(nbCalls); i++ {
+		tmpRes[i] = make(chan {{.Name}}Jac, 1)
+		chIndices[i] = make(chan struct{}, 1)
+		indices[i] = make([][]int, 0, 1<<nbBits)
+		for j := 0; j < len(indices[i]); j++ {
+			indices[i][j] = make([]int, 0, nbPointsPerBucket)
+		}
+	}
+
 	work := func(iStart, iEnd int) {
 		chunks := make([]uint64, nbBits)
 		offsets := make([]uint64, nbBits)
@@ -95,11 +106,7 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{ .Name}}Affine, scalars
 				counter++
 			}
 			c := 1 << counter
-			buckets := make([]{{ .Name}}Jac, c-1)
-			for j := 0; j < c-1; j++ {
-				buckets[j].X.SetOne()
-				buckets[j].Y.SetOne()
-			}
+			indices[i] = make([][]int, c-1)
 			var l uint64
 			for j := 0; j < nbPoints; j++ {
 				var index uint64
@@ -110,25 +117,43 @@ func (p *{{.Name}}Jac) MultiExp(curve *Curve, points []{{ .Name}}Affine, scalars
 					index += l
 				}
 				if index != 0 {
-					buckets[index-1].AddMixed(&points[j])
+					indices[i][index-1] = append(indices[i][index-1], j)
 				} 
 			}
-			sum := curve.{{toLower .Name}}Infinity
-			for j := len(buckets) - 1; j >= 0; j-- {
-				sum.Add(curve, &buckets[j])
-				tmpRes[i].Add(curve, &sum)
-			}
+			chIndices[i] <- struct{}{}
+			close(chIndices[i])
 		}
 	}
-	chDone := pool.ExecuteAsync(0, len(tmpRes), work, false)
+	pool.ExecuteAsyncReverse(0, int(nbCalls), work, false)
+
+	// now we have the indices, let's compute what's inside
+
+	debug.Assert(nbCalls > 1)
+	pool.ExecuteAsyncReverse(0, int(nbCalls), func(start, end int){
+		for i := start; i < end; i++ {
+			var res  {{ .Name}}Jac
+			sum := curve.{{toLower .Name}}Infinity
+			<-chIndices[i]
+			for j := len(indices[i]) - 1; j >= 0; j-- {
+				for k := 0; k < len(indices[i][j]); k++ {
+					sum.AddMixed(&points[indices[i][j][k]])
+				}
+				res.Add(curve, &sum)
+			}
+			tmpRes[i] <- res
+			close(tmpRes[i])
+		}
+	}, false) 
+
 	 go func() {
-		<-chDone // that's making a "go routine" in the pool block, uncool
 		p.Set(&curve.{{toLower .Name}}Infinity)
+		debug.Assert(len(tmpRes)-2 >= 0)
 		for i := len(tmpRes) - 1; i >= 0; i-- {
 			for j := uint64(0); j < nbBits; j++ {
 				p.Double()
 			}
-			p.Add(curve, &tmpRes[i])
+			r := <-tmpRes[i]
+			p.Add(curve, &r)
 		}
 		chRes <- *p
 	}()
@@ -150,24 +175,23 @@ func (p *locked{{.Name}}Jac) addMixed(p1 *{{.Name}}Affine) {
 // see: https://eprint.iacr.org/2012/549.pdf
 // if maxGoRoutine is not provided, uses all available CPUs
 func (p *{{.Name}}Jac) MultiExpNew(curve *Curve, points []{{.Name}}Affine, scalars []fr.Element) chan {{.Name}}Jac {
-
-	debug.Assert(len(scalars) == len(points))
+	n := len(scalars)
+	debug.Assert(n == len(points))
 
 	// res channel
 	chRes := make(chan {{.Name}}Jac, 1)
 
-	// create buckets
-	var buckets [32][255]locked{{.Name}}Jac
-	for i := 0; i < 32; i++ {
-		for j := 0; j < 255; j++ {
-			buckets[i][j].Set(&curve.{{toLower .Name}}Infinity)
-		}
-	}
+	// indices
+	var indices [32][255][]int
 
 	// each cpu works on a subset of scalars/points, on the chunk-th pack of 8 bits
-	work := func(chunk int) func(start, end int) {
+	indicePrecompute := func(start, end int) {
+		for chunk := start; chunk < end; chunk++ {
+			// memallocs
+			for j := 0; j < 255; j++ {
+				indices[chunk][j] = make([]int, 0, n)
+			}
 
-		return func(_start, _end int) {
 			var _res {{.Name}}Jac
 			_res.Set(&curve.{{toLower .Name}}Infinity)
 
@@ -178,19 +202,47 @@ func (p *{{.Name}}Jac) MultiExpNew(curve *Curve, points []{{.Name}}Affine, scala
 			var val uint64
 
 			//for all scalars in the range of this worker
-			for j := _start; j < _end; j++ {
+			for j := 0; j < n; j++ {
 				val = (scalars[j][limb] >> offset) & mask
 				if val != 0 {
-					buckets[chunk][val-1].addMixed(&points[j])
+					indices[chunk][val-1] = append(indices[chunk][val-1], j)
+					// buckets[chunk][val-1].addMixed(&points[j])
 				}
 			}
+		}
+	}
+	pool.Execute(0, 32, indicePrecompute, false)
+
+	// create buckets
+	var buckets [32][255]{{.Name}}Jac
+	for i := 0; i < 32; i++ {
+		for j := 0; j < 255; j++ {
+			buckets[i][j].Set(&curve.{{toLower .Name}}Infinity)
 		}
 	}
 
 	var chunkChans [32]chan bool
 	for i := 0; i < 32; i++ {
-		chunkChans[i] = pool.ExecuteAsync(0, len(scalars), work(i), false)
+		chunkChans[i] = make(chan bool, 1)
 	}
+
+	go func() {
+		// do the add mixed
+		pool.Execute(0, 32, func(start, end int){
+			for i := start; i < end; i++ {
+				chunk := i
+				for j:=0; j < 255; j++ {
+					idx := indices[chunk][j]
+					for k := 0; k < len(idx); k++ {
+						buckets[chunk][j].AddMixed(&points[idx[k]])
+					}
+				}
+				chunkChans[chunk] <- true
+			}
+		}, false) 
+		
+	}()
+
 
 	go func() {
 
@@ -210,7 +262,7 @@ func (p *{{.Name}}Jac) MultiExpNew(curve *Curve, points []{{.Name}}Affine, scala
 			acc.Set(&curve.{{toLower .Name}}Infinity)
 			almostThere.Set(&curve.{{toLower .Name}}Infinity)
 			for j := 0; j < 255; j++ {
-				acc.Add(curve, &buckets[i][254-j].{{.Name}}Jac)
+				acc.Add(curve, &buckets[i][254-j])
 				almostThere.Add(curve, &acc)
 			}
 			res.Add(curve, &almostThere)
