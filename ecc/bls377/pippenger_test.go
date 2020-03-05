@@ -177,5 +177,21 @@ func BenchmarkGus549(b *testing.B) {
 			}
 		})
 
+		// MultiExp takes affine points, not Jacobian points
+		// It's way too slow to convert all of points to affine,
+		// so just convert one point and copy it
+		// TODO why is this so slow?
+		pointsAffine := make([]G1Affine, len(points))
+		// points[0].ToAffineFromJac(&pointsAffine[0])
+		// for k := range pointsAffine {
+		// 	pointsAffine[k] = pointsAffine[0]
+		// }
+
+		b.Run(fmt.Sprintf("%d-MultiExp", numPoints[j]), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				exp.MultiExp(curve, pointsAffine, scalars)
+			}
+		})
+
 	}
 }
