@@ -10,12 +10,14 @@ import (
 
 // Gus549 implements the "Pippenger approach" from Section 4 of
 // https://eprint.iacr.org/2012/549.pdf
-func (p *G1Jac) Gus549(curve *Curve, points []G1Jac, scalars []fr.Element) *G1Jac {
-	const c int = 4                        // scalars partitioned into c-bit radixes, must divide 64
-	const t int = fr.ElementLimbs * 64 / c // number of c-bit radixes in a scalar
-	const selectorMask = (1 << c) - 1      // low c bits are 1
+func (p *G1Jac) Gus549(curve *Curve, points []G1Jac, scalars []fr.Element, c int) *G1Jac {
+	// const c int = 4                        // scalars partitioned into c-bit radixes, must divide 64
+	t := fr.ElementLimbs * 64 / c        // number of c-bit radixes in a scalar
+	selectorMask := uint64((1 << c) - 1) // low c bits are 1
 
 	debug.Assert(64%c == 0) // see TODO below
+
+	buckets := make([]G1Jac, (1<<c)-1)
 
 	p.Set(&curve.g1Infinity)
 
@@ -30,7 +32,6 @@ func (p *G1Jac) Gus549(curve *Curve, points []G1Jac, scalars []fr.Element) *G1Ja
 	for j := 0; j < t; j++ {
 
 		// initialize 2^c - 1 buckets
-		var buckets [(1 << c) - 1]G1Jac
 		for k := 0; k < len(buckets); k++ {
 			buckets[k].Set(&curve.g1Infinity)
 		}
@@ -38,7 +39,7 @@ func (p *G1Jac) Gus549(curve *Curve, points []G1Jac, scalars []fr.Element) *G1Ja
 		// place points into buckets based on their selector
 		jc := j * c
 		selectorIndex := jc / 64
-		selectorShift := uint64(jc - (selectorIndex * 64))
+		selectorShift := jc - (selectorIndex * 64)
 		for i := 0; i < len(points); i++ {
 
 			// TODO: if c does not divide 64

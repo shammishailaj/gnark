@@ -15,6 +15,7 @@ func TestGus549(t *testing.T) {
 	var points []G1Jac
 	var scalars []fr.Element
 	var got G1Jac
+	c := 4
 
 	//
 	// Test 1: testPointsG1multiExp
@@ -27,7 +28,7 @@ func TestGus549(t *testing.T) {
 		}
 		points, scalars = testPointsG1MultiExp(numPoints[i])
 
-		got.Gus549(curve, points, scalars)
+		got.Gus549(curve, points, scalars, c)
 		if !got.Equal(&wants[i]) {
 			t.Error("Gus549 fail for points:", numPoints[i])
 		}
@@ -49,7 +50,7 @@ func TestGus549(t *testing.T) {
 		s3,
 	}
 
-	got.Gus549(curve, p[17:20], scalars)
+	got.Gus549(curve, p[17:20], scalars, c)
 	if !got.Equal(&p[20]) {
 		t.Error("Gus549 failed")
 	}
@@ -60,28 +61,28 @@ func TestGus549(t *testing.T) {
 
 	// one input point p[1]
 	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
-	got.Gus549(curve, p[1:2], scalars[:1])
+	got.Gus549(curve, p[1:2], scalars[:1], c)
 	if !got.Equal(&p[6]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 
 	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
-	got.Gus549(curve, p[1:2], scalars[:1])
+	got.Gus549(curve, p[1:2], scalars[:1], c)
 	if !got.Equal(&p[5]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
-	got.Gus549(curve, p[1:2], scalars[:1])
+	got.Gus549(curve, p[1:2], scalars[:1], c)
 	if !got.Equal(&p[1]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{0, 0, 0, 0} // scalar = 0
-	got.Gus549(curve, p[1:2], scalars[:1])
+	got.Gus549(curve, p[1:2], scalars[:1], c)
 	if !got.Equal(&curve.g1Infinity) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
-	got.Gus549(curve, p[1:2], scalars[:1])
+	got.Gus549(curve, p[1:2], scalars[:1], c)
 	if !got.Equal(&p[21]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
@@ -90,27 +91,27 @@ func TestGus549(t *testing.T) {
 	infinity := []G1Jac{curve.g1Infinity}
 
 	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
-	got.Gus549(curve, infinity, scalars[:1])
+	got.Gus549(curve, infinity, scalars[:1], c)
 	if !got.Equal(&curve.g1Infinity) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
-	got.Gus549(curve, infinity, scalars[:1])
+	got.Gus549(curve, infinity, scalars[:1], c)
 	if !got.Equal(&curve.g1Infinity) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
-	got.Gus549(curve, infinity, scalars[:1])
+	got.Gus549(curve, infinity, scalars[:1], c)
 	if !got.Equal(&curve.g1Infinity) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{0, 0, 0, 0} // scalar = 0
-	got.Gus549(curve, infinity, scalars[:1])
+	got.Gus549(curve, infinity, scalars[:1], c)
 	if !got.Equal(&curve.g1Infinity) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
-	got.Gus549(curve, infinity, scalars[:1])
+	got.Gus549(curve, infinity, scalars[:1], c)
 	if !got.Equal(&curve.g1Infinity) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
@@ -120,31 +121,31 @@ func TestGus549(t *testing.T) {
 
 	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
 	scalars[1] = fr.Element{2, 0, 0, 0}     // scalar = 2
-	got.Gus549(curve, twoPoints, scalars[:2])
+	got.Gus549(curve, twoPoints, scalars[:2], c)
 	if !got.Equal(&p[6]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
 	scalars[1] = fr.Element{1, 0, 0, 0} // scalar = 1
-	got.Gus549(curve, twoPoints, scalars[:2])
+	got.Gus549(curve, twoPoints, scalars[:2], c)
 	if !got.Equal(&p[5]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
 	scalars[1] = fr.Element{0, 0, 0, 0} // scalar = 0
-	got.Gus549(curve, twoPoints, scalars[:2])
+	got.Gus549(curve, twoPoints, scalars[:2], c)
 	if !got.Equal(&p[1]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{0, 0, 0, 0}                                     // scalar = 0
 	scalars[1] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
-	got.Gus549(curve, twoPoints, scalars[:2])
+	got.Gus549(curve, twoPoints, scalars[:2], c)
 	if !got.Equal(&curve.g1Infinity) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
 	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
 	scalars[1] = fr.Element{32394, 0, 0, 0}                                 // single-word scalar
-	got.Gus549(curve, twoPoints, scalars[:2])
+	got.Gus549(curve, twoPoints, scalars[:2], c)
 	if !got.Equal(&p[21]) {
 		t.Error("Gus549 failed, scalar:", scalars[0])
 	}
@@ -158,18 +159,23 @@ func TestGus549(t *testing.T) {
 
 func BenchmarkGus549(b *testing.B) {
 
+	// fmt.Println("GOMAXPROCS was", runtime.GOMAXPROCS(1))
+
 	curve := BLS377()
 	numPoints, _ := testPointsG1MultiExpResults()
 	var exp G1Jac
+	cs := [...]int{1, 2, 4, 8, 16}
 
 	for j := range numPoints {
 		points, scalars := testPointsG1MultiExp(numPoints[j])
 
-		b.Run(fmt.Sprintf("%d-Gus549", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				exp.Gus549(curve, points, scalars)
-			}
-		})
+		for _, c := range cs {
+			b.Run(fmt.Sprintf("%d-Gus549-%d", numPoints[j], c), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					exp.Gus549(curve, points, scalars, c)
+				}
+			})
+		}
 
 		b.Run(fmt.Sprintf("%d-multiExp", numPoints[j]), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
@@ -181,17 +187,17 @@ func BenchmarkGus549(b *testing.B) {
 		// It's way too slow to convert all of points to affine,
 		// so just convert one point and copy it
 		// TODO why is this so slow?
-		pointsAffine := make([]G1Affine, len(points))
+		// pointsAffine := make([]G1Affine, len(points))
 		// points[0].ToAffineFromJac(&pointsAffine[0])
 		// for k := range pointsAffine {
 		// 	pointsAffine[k] = pointsAffine[0]
 		// }
 
-		b.Run(fmt.Sprintf("%d-MultiExp", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				exp.MultiExp(curve, pointsAffine, scalars)
-			}
-		})
+		// b.Run(fmt.Sprintf("%d-MultiExp", numPoints[j]), func(b *testing.B) {
+		// 	for i := 0; i < b.N; i++ {
+		// 		exp.MultiExp(curve, pointsAffine, scalars)
+		// 	}
+		// })
 
 	}
 }
