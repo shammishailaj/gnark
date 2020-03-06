@@ -189,7 +189,7 @@ func BenchmarkGus549(b *testing.B) {
 
 		b.Run(fmt.Sprintf("%d-MultiExp", numPoints[j]), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				exp.MultiExp(curve, pointsAffine, scalars)
+				<-exp.MultiExp(curve, pointsAffine, scalars)
 			}
 		})
 
