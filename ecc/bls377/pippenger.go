@@ -48,6 +48,7 @@ func (p *G1Jac) Gus549(curve *Curve, points []G1Jac, scalars []fr.Element, c int
 			selector := (scalars[i][selectorIndex] & (selectorMask << selectorShift)) >> selectorShift
 
 			if selector != 0 {
+				// TODO: don't add the first point.  Instead, check if the bucket is the zero point, and if so use Set instead of Add
 				buckets[selector-1].Add(curve, &points[i])
 			}
 		}

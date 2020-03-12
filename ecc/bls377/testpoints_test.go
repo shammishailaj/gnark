@@ -326,7 +326,12 @@ func testPointsG2() []G2Jac {
 func testPointsG1MultiExpResults() (numPoints []int, results []G1Jac) {
 
 	// numPoints = []int{3, 10, 20, 30, 50, 100, 1000, 10000, 40000, 100000}
-	numPoints = []int{10, 100, 1000, 10000, 40000, 100000}
+
+	// tests ignore any numPoints element larger than 1e4
+	// benches don't rely on results being correct
+	// BEWARE: Thus, I don't always initialize correct outputs for instances larger than 1e4
+	numPoints = []int{1e1, 1e2, 1e3, 1e4, 4e4, 1e5, 1e6, 1e7}
+
 	results = make([]G1Jac, len(numPoints))
 
 	// results[i] is the correct result of a call to MultiExp() with points, scalars obtained from testPointsG1MultiExp(numPoints[i])

@@ -5,6 +5,7 @@ package bls377
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/consensys/gnark/ecc/bls377/fr"
@@ -23,7 +24,7 @@ func TestGus549(t *testing.T) {
 	numPoints, wants := testPointsG1MultiExpResults()
 
 	for i := range numPoints {
-		if numPoints[i] > 10000 {
+		if numPoints[i] > 1e4 {
 			continue
 		}
 		points, scalars = testPointsG1MultiExp(numPoints[i])
@@ -159,7 +160,7 @@ func TestGus549(t *testing.T) {
 
 func BenchmarkGus549(b *testing.B) {
 
-	// fmt.Println("GOMAXPROCS was", runtime.GOMAXPROCS(1))
+	fmt.Println("GOMAXPROCS was", runtime.GOMAXPROCS(1))
 
 	curve := BLS377()
 	numPoints, _ := testPointsG1MultiExpResults()
