@@ -330,7 +330,7 @@ func testPointsG1MultiExpResults() (numPoints []int, results []G1Jac) {
 	// tests ignore any numPoints element larger than 1e4
 	// benches don't rely on results being correct
 	// BEWARE: Thus, I don't always initialize correct outputs for instances larger than 1e4
-	numPoints = []int{1e1, 1e2, 1e3, 1e4, 4e4, 1e5, 1e6, 1e7}
+	numPoints = []int{1e1, 1e2, 1e3, 1e4, 4e4, 1e5}
 
 	results = make([]G1Jac, len(numPoints))
 
