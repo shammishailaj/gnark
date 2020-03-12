@@ -33,6 +33,11 @@ func TestGus549(t *testing.T) {
 		if !got.Equal(&wants[i]) {
 			t.Error("Gus549 fail for points:", numPoints[i])
 		}
+
+		got.Gus549NonStupid(curve, points, scalars, c)
+		if !got.Equal(&wants[i]) {
+			t.Error("Gus549NonStupid fail for points:", numPoints[i])
+		}
 	}
 
 	//
@@ -196,5 +201,32 @@ func BenchmarkGus549(b *testing.B) {
 			}
 		})
 
+	}
+}
+
+func BenchmarkGus549NonStupid(b *testing.B) {
+
+	fmt.Println("GOMAXPROCS was", runtime.GOMAXPROCS(1))
+
+	curve := BLS377()
+	numPoints, _ := testPointsG1MultiExpResults()
+	var exp G1Jac
+	cs := [...]int{8}
+
+	for j := range numPoints {
+		points, scalars := testPointsG1MultiExp(numPoints[j])
+
+		for _, c := range cs {
+			b.Run(fmt.Sprintf("%d-Gus549-%d", numPoints[j], c), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					exp.Gus549(curve, points, scalars, c)
+				}
+			})
+			b.Run(fmt.Sprintf("%d-Gus549NonStupid-%d", numPoints[j], c), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					exp.Gus549NonStupid(curve, points, scalars, c)
+				}
+			})
+		}
 	}
 }
