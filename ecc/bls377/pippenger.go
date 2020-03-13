@@ -10,7 +10,7 @@ import (
 
 // Gus549 implements the "Pippenger approach" from Section 4 of
 // https://eprint.iacr.org/2012/549.pdf
-func (p *G1Jac) Gus549(curve *Curve, points []G1Jac, scalars []fr.Element, c int) *G1Jac {
+func (p *G1Jac) Gus549(curve *Curve, points []G1Affine, scalars []fr.Element, c int) *G1Jac {
 	// const c int = 4                        // scalars partitioned into c-bit radixes, must divide 64
 	t := fr.ElementLimbs * 64 / c        // number of c-bit radixes in a scalar
 	selectorMask := uint64((1 << c) - 1) // low c bits are 1
@@ -49,7 +49,7 @@ func (p *G1Jac) Gus549(curve *Curve, points []G1Jac, scalars []fr.Element, c int
 
 			if selector != 0 {
 				// TODO: don't add the first point.  Instead, check if the bucket is the zero point, and if so use Set instead of Add
-				buckets[selector-1].Add(curve, &points[i])
+				buckets[selector-1].AddMixed(&points[i])
 			}
 		}
 

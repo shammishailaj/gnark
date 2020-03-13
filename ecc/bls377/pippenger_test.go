@@ -12,146 +12,87 @@ import (
 )
 
 func TestGus549(t *testing.T) {
+	const fewPoints = 30
+	const manyPoints = 3000
+	cs := [...]int{4, 8, 16}
+
 	curve := BLS377()
-	var points []G1Jac
-	var scalars []fr.Element
-	var got G1Jac
-	c := 4
 
-	//
-	// Test 1: testPointsG1multiExp
-	//
-	numPoints, wants := testPointsG1MultiExpResults()
+	var G G1Jac
 
-	for i := range numPoints {
-		if numPoints[i] > 1e4 {
-			continue
-		}
-		points, scalars = testPointsG1MultiExp(numPoints[i])
+	// mixer ensures that all the words of a fpElement are set
+	var mixer fr.Element
+	mixer.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
 
-		got.Gus549(curve, points, scalars, c)
-		if !got.Equal(&wants[i]) {
-			t.Error("Gus549 fail for points:", numPoints[i])
-		}
+	samplePoints := make([]G1Affine, manyPoints)
+	sampleScalars := make([]fr.Element, manyPoints)
+
+	G.Set(&curve.g1Gen)
+
+	for i := 1; i <= manyPoints; i++ {
+		sampleScalars[i-1].SetUint64(uint64(i)).
+			MulAssign(&mixer).
+			FromMont()
+		G.ToAffineFromJac(&samplePoints[i-1])
+		G.Add(curve, &curve.g1Gen)
 	}
 
-	//
-	// Test 2: testPointsG1()
-	//
-	p := testPointsG1()
+	var finalBigScalar fr.Element
+	var finalLotOfPoint G1Jac
+	finalBigScalar.SetString("9004500500").MulAssign(&mixer).FromMont()
+	finalLotOfPoint.ScalarMul(curve, &curve.g1Gen, finalBigScalar)
+
+	var finalScalar fr.Element
+	var finalPoint G1Jac
+	finalScalar.SetString("9455").MulAssign(&mixer).FromMont()
+	finalPoint.ScalarMul(curve, &curve.g1Gen, finalScalar)
+
+	var testLotOfPoint, testPoint G1Jac
+	for _, c := range cs {
+		testLotOfPoint.Gus549(curve, samplePoints, sampleScalars, c)
+		testPoint.Gus549(curve, samplePoints[:fewPoints], sampleScalars[:fewPoints], c)
+
+		if !finalLotOfPoint.Equal(&testLotOfPoint) {
+			t.Fatal("error multi (>50 points) exp")
+		}
+		if !finalPoint.Equal(&testPoint) {
+			t.Fatal("error multi <=50 points) exp")
+		}
+	}
+}
+
+func testPointsG1MultiExp(n int) (points []G1Jac, scalars []fr.Element) {
+
+	curve := BLS377()
+
+	// points
+	points = make([]G1Jac, n)
+	points[0].Set(&curve.g1Gen)
+	points[1].Set(&points[0]).Double() // can't call p.Add(a) when p equals a
+	for i := 2; i < len(points); i++ {
+		points[i].Set(&points[i-1]).Add(curve, &points[0]) // points[i] = i*g1Gen
+	}
 
 	// scalars
-	s1 := fr.Element{23872983, 238203802, 9827897384, 2372} // 14889285316340551032002176131108485811963550694615991316137431
-	s2 := fr.Element{128923, 2878236, 398478, 187970707}    // 1179911251111561301561648964820473185772012989930899737079831459739
-	s3 := fr.Element{9038947, 3947970, 29080823, 282739}    // 1774781467561494742381858548177178844765555009630735687022668899
+	// non-Montgomery form
+	// cardinality of G1 is the fr modulus, so scalars should be fr.Elements
+	// non-Montgomery form
+	scalars = make([]fr.Element, n)
 
-	scalars = []fr.Element{
-		s1,
-		s2,
-		s3,
-	}
+	// To ensure a diverse selection of scalars that use all words of an fr.Element,
+	// each scalar should be a power of a large generator of fr.
+	var scalarGenMont fr.Element
+	scalarGenMont.SetString("7716837800905789770901243404444209691916730933998574719964609384059111546487")
+	scalars[0].Set(&scalarGenMont).FromMont()
 
-	got.Gus549(curve, p[17:20], scalars, c)
-	if !got.Equal(&p[20]) {
-		t.Error("Gus549 failed")
-	}
-
-	//
-	// Test 3: edge cases
-	//
-
-	// one input point p[1]
-	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
-	got.Gus549(curve, p[1:2], scalars[:1], c)
-	if !got.Equal(&p[6]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
+	var curScalarMont fr.Element // Montgomery form
+	curScalarMont.Set(&scalarGenMont)
+	for i := 1; i < len(scalars); i++ {
+		curScalarMont.MulAssign(&scalarGenMont) // scalars[i] = scalars[0]^i
+		scalars[i].Set(&curScalarMont).FromMont()
 	}
 
-	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
-	got.Gus549(curve, p[1:2], scalars[:1], c)
-	if !got.Equal(&p[5]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
-	got.Gus549(curve, p[1:2], scalars[:1], c)
-	if !got.Equal(&p[1]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{0, 0, 0, 0} // scalar = 0
-	got.Gus549(curve, p[1:2], scalars[:1], c)
-	if !got.Equal(&curve.g1Infinity) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
-	got.Gus549(curve, p[1:2], scalars[:1], c)
-	if !got.Equal(&p[21]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-
-	// one input point curve.g1Infinity
-	infinity := []G1Jac{curve.g1Infinity}
-
-	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
-	got.Gus549(curve, infinity, scalars[:1], c)
-	if !got.Equal(&curve.g1Infinity) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
-	got.Gus549(curve, infinity, scalars[:1], c)
-	if !got.Equal(&curve.g1Infinity) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
-	got.Gus549(curve, infinity, scalars[:1], c)
-	if !got.Equal(&curve.g1Infinity) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{0, 0, 0, 0} // scalar = 0
-	got.Gus549(curve, infinity, scalars[:1], c)
-	if !got.Equal(&curve.g1Infinity) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
-	got.Gus549(curve, infinity, scalars[:1], c)
-	if !got.Equal(&curve.g1Infinity) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-
-	// two input points: p[1], curve.g1Infinity
-	twoPoints := []G1Jac{p[1], curve.g1Infinity}
-
-	scalars[0] = fr.Element{32394, 0, 0, 0} // single-word scalar
-	scalars[1] = fr.Element{2, 0, 0, 0}     // scalar = 2
-	got.Gus549(curve, twoPoints, scalars[:2], c)
-	if !got.Equal(&p[6]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{2, 0, 0, 0} // scalar = 2
-	scalars[1] = fr.Element{1, 0, 0, 0} // scalar = 1
-	got.Gus549(curve, twoPoints, scalars[:2], c)
-	if !got.Equal(&p[5]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{1, 0, 0, 0} // scalar = 1
-	scalars[1] = fr.Element{0, 0, 0, 0} // scalar = 0
-	got.Gus549(curve, twoPoints, scalars[:2], c)
-	if !got.Equal(&p[1]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{0, 0, 0, 0}                                     // scalar = 0
-	scalars[1] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
-	got.Gus549(curve, twoPoints, scalars[:2], c)
-	if !got.Equal(&curve.g1Infinity) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-	scalars[0] = fr.Element{^uint64(0), ^uint64(0), ^uint64(0), ^uint64(0)} // scalar == (4-word maxuint)
-	scalars[1] = fr.Element{32394, 0, 0, 0}                                 // single-word scalar
-	got.Gus549(curve, twoPoints, scalars[:2], c)
-	if !got.Equal(&p[21]) {
-		t.Error("Gus549 failed, scalar:", scalars[0])
-	}
-
-	// TODO: Jacobian points with nontrivial Z coord?
+	return points, scalars
 }
 
 //--------------------//
@@ -165,29 +106,23 @@ func BenchmarkGus549(b *testing.B) {
 	curve := BLS377()
 	numPoints, _ := testPointsG1MultiExpResults()
 	var exp G1Jac
-	cs := [...]int{8}
+	cs := [...]int{8, 16}
 
 	for j := range numPoints {
 		points, scalars := testPointsG1MultiExp(numPoints[j])
-
-		for _, c := range cs {
-			b.Run(fmt.Sprintf("%d-Gus549-%d", numPoints[j], c), func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
-					exp.Gus549(curve, points, scalars, c)
-				}
-			})
-		}
-
-		b.Run(fmt.Sprintf("%d-multiExp", numPoints[j]), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
-				exp.multiExp(curve, points, scalars)
-			}
-		})
 
 		// MultiExp takes affine points, not Jacobian points
 		pointsAffine := make([]G1Affine, len(points))
 		for k := range pointsAffine {
 			points[k].ToAffineFromJac(&pointsAffine[k])
+		}
+
+		for _, c := range cs {
+			b.Run(fmt.Sprintf("%d-Gus549-%d", numPoints[j], c), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					exp.Gus549(curve, pointsAffine, scalars, c)
+				}
+			})
 		}
 
 		b.Run(fmt.Sprintf("%d-MultiExp", numPoints[j]), func(b *testing.B) {
@@ -196,5 +131,10 @@ func BenchmarkGus549(b *testing.B) {
 			}
 		})
 
+		// b.Run(fmt.Sprintf("%d-multiExp", numPoints[j]), func(b *testing.B) {
+		// 	for i := 0; i < b.N; i++ {
+		// 		exp.multiExp(curve, points, scalars)
+		// 	}
+		// })
 	}
 }
