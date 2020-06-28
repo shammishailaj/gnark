@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 
-	"github.com/consensys/gnark/cs"
+	"github.com/consensys/gnark/encoding/gob"
+	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gurvy"
 )
 
 func main() {
 	circuit := New()
-	circuit.Write("circuit.r1cs")
+	gob.Write("circuit.r1cs", circuit, gurvy.BN256)
 }
 
 const bitSize = 8 // number of bits of exponent
@@ -16,10 +18,10 @@ const bitSize = 8 // number of bits of exponent
 // New return the circuit implementing
 // y == x**e
 // only the bitSize least significant bits of e are used
-func New() cs.CS {
+func New() *frontend.R1CS {
 
 	// create root constraint system
-	circuit := cs.New()
+	circuit := frontend.New()
 
 	// declare secret and public inputs
 	x := circuit.PUBLIC_INPUT("x")
@@ -45,5 +47,7 @@ func New() cs.CS {
 
 	circuit.MUSTBE_EQ(y, output)
 
-	return circuit
+	r1cs := circuit.ToR1CS()
+
+	return r1cs
 }
